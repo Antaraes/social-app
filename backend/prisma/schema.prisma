@@ -1,0 +1,90 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+// schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ReactionType {
+  LIKE
+  LOVE
+  HAHA
+  WOW
+  SAD
+  ANGRY
+}
+
+model User {
+  id           Int         @id @default(autoincrement())
+  email        String      @unique
+  name         String      @db.VarChar(100)
+  password     String
+  refreshToken String?
+  avatar       String?     @db.VarChar(255) // Added avatar field
+  bio          String?     @db.VarChar(160)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  posts        Post[]
+  comments     Comment[]
+  reactions    Reaction[]
+
+  @@map("users")
+}
+
+model Post {
+  id            Int         @id @default(autoincrement())
+  title         String      @db.VarChar(200)
+  content       String      @db.Text
+  image         String?     @db.VarChar(255)
+  userId        Int         @map("user_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  reactionCount Int         @default(0) @map("reaction_count")
+
+  user          User        @relation(fields: [userId], references: [id])
+  comments      Comment[]
+  reactions     Reaction[]
+
+  @@map("posts")
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  userId    Int      @map("user_id")
+  postId    Int      @map("post_id")
+  parentId  Int?     @map("parent_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User     @relation(fields: [userId], references: [id])
+  post      Post     @relation(fields: [postId], references: [id])
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id])
+  children  Comment[] @relation("CommentReplies")
+
+  @@map("comments")
+}
+
+model Reaction {
+  id        Int         @id @default(autoincrement())
+  type      ReactionType
+  userId    Int         @map("user_id")
+  postId    Int         @map("post_id")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  user      User        @relation(fields: [userId], references: [id])
+  post      Post        @relation(fields: [postId], references: [id])
+
+  @@unique([postId, userId])
+  @@map("reactions")
+}
