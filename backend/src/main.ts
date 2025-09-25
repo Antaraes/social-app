@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { join } from 'path';
 import * as fs from 'fs';
 import * as express from 'express';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -32,6 +33,15 @@ async function bootstrap() {
   );
 
   app.useGlobalFilters(new HttpExceptionFilter());
+
+  const config = new DocumentBuilder()
+    .setTitle('Authentication API')
+    .setDescription('API for user authentication and profile management')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
 
   const port =
     process.env.PORT && process.env.PORT.trim() !== ''
