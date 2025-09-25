@@ -122,6 +122,7 @@ DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}
 ```bash
 docker-compose build
 docker-compose up -d
+docker-compose exec backend npm run prisma:seed # Generate sample data
 ```
 
 Services:
