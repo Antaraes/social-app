@@ -1,8 +1,4 @@
-Got it 👍 I’ll update your **README.md** so it includes both **Docker setup** and **manual (without Docker) setup**, along with the extra **features section** you mentioned.
 
-Here’s the revised README:
-
-```markdown
 # 📱 Social Media Application
 
 A full-stack **social media application** built with a **NestJS backend**, **Next.js frontend**, and a **PostgreSQL database**.  
