@@ -16,6 +16,8 @@ import { DraftModule } from './draft/draft.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { BullModule } from '@nestjs/bullmq';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { MessagingModule } from './messaging/messaging.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -48,6 +50,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
       },
     ]),
     PrismaModule,
+    RedisModule,
     UsersModule,
     AuthModule,
     PostsModule,
@@ -58,6 +61,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     SearchModule,
     DraftModule,
     NotificationsModule,
+    MessagingModule,
   ],
   controllers: [AppController],
   providers: [AppService, ConfigService],

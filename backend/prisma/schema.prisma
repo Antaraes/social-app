@@ -75,6 +75,12 @@ model User {
   notificationSettings NotificationSettings?
   activityLogs         ActivityLog[]
 
+  // Messaging system
+  conversationsAsUser1 Conversation[] @relation("ConversationUser1")
+  conversationsAsUser2 Conversation[] @relation("ConversationUser2")
+  sentMessages         Message[]      @relation("SentMessages")
+  receivedMessages     Message[]      @relation("ReceivedMessages")
+
   @@map("users")
 }
 
@@ -302,4 +308,77 @@ model ActivityLog {
   @@index([userId, createdAt])
   @@index([action])
   @@map("activity_logs")
+}
+
+// Messaging system
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+model Conversation {
+  id           Int       @id @default(autoincrement())
+  participant1 Int       @map("participant_1")
+  participant2 Int       @map("participant_2")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Last message info for quick access
+  lastMessageId    Int?      @map("last_message_id")
+  lastMessageAt    DateTime? @map("last_message_at")
+  lastMessageText  String?   @map("last_message_text") @db.VarChar(255)
+
+  user1        User      @relation("ConversationUser1", fields: [participant1], references: [id], onDelete: Cascade)
+  user2        User      @relation("ConversationUser2", fields: [participant2], references: [id], onDelete: Cascade)
+  messages     Message[]
+
+  @@unique([participant1, participant2])
+  @@index([participant1, updatedAt])
+  @@index([participant2, updatedAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             Int           @id @default(autoincrement())
+  conversationId Int           @map("conversation_id")
+  senderId       Int           @map("sender_id")
+  receiverId     Int           @map("receiver_id")
+  content        String        @db.Text
+  status         MessageStatus @default(SENT)
+
+  // Attachments (optional)
+  attachments    Json?         @default("[]")
+
+  // Redis stream tracking
+  redisMessageId String?       @unique @map("redis_message_id") @db.VarChar(100)
+
+  // Read receipts
+  deliveredAt    DateTime?     @map("delivered_at")
+  readAt         DateTime?     @map("read_at")
+
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User          @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver       User          @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+  @@map("messages")
+}
+
+model MessageReadReceipt {
+  id        Int      @id @default(autoincrement())
+  messageId Int      @map("message_id")
+  userId    Int      @map("user_id")
+  readAt    DateTime @default(now()) @map("read_at")
+
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@map("message_read_receipts")
 }

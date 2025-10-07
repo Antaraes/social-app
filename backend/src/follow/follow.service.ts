@@ -198,4 +198,43 @@ export class FollowService {
 
     return !!follow;
   }
+
+  async getMutualFollows(userId: number) {
+    // Get users that the current user follows
+    const following = await this.prisma.follow.findMany({
+      where: { followerId: userId },
+      select: { followingId: true },
+    });
+
+    // Get users that follow the current user
+    const followers = await this.prisma.follow.findMany({
+      where: { followingId: userId },
+      select: { followerId: true },
+    });
+
+    // Find mutual follows (intersection)
+    const followingIds = following.map(f => f.followingId);
+    const followerIds = followers.map(f => f.followerId);
+    const mutualIds = followingIds.filter(id => followerIds.includes(id));
+
+    // Fetch user details for mutual follows
+    const mutualFollows = await this.prisma.user.findMany({
+      where: { id: { in: mutualIds } },
+      select: {
+        id: true,
+        name: true,
+        avatar: true,
+        bio: true,
+      },
+    });
+
+    // Map to Friend interface format with mutualFollows flag
+    return mutualFollows.map(user => ({
+      id: user.id,
+      name: user.name,
+      avatar: user.avatar,
+      isOnline: false, // TODO: Implement online status tracking with Redis
+      mutualFollows: true,
+    }));
+  }
 }

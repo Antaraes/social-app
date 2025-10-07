@@ -83,4 +83,13 @@ export class FollowController {
     const isFollowing = await this.followService.isFollowing(req.user.id, userId);
     return { isFollowing };
   }
+
+  /**
+   * Get mutual follows (friends) - users who follow each other
+   * GET /follow/mutual
+   */
+  @Get('mutual')
+  async getMutualFollows(@Req() req) {
+    return this.followService.getMutualFollows(req.user.id);
+  }
 }

@@ -8,7 +8,9 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import SearchBar from "../search/SearchBar";
 import { NotificationBell } from "../notifications/NotificationBell";
-import { initializeSocket, disconnectSocket } from "@/lib/socket";
+import { MessageBadge } from "../messaging/MessageBadge";
+import { initializeSocket, disconnectSocket, messagingSocket } from "@/lib/socket";
+import Cookies from "js-cookie";
 
 const Header = () => {
   const { user, loading, logout } = useAuth();
@@ -18,17 +20,22 @@ const Header = () => {
     setIsMenuOpen((prev) => !prev);
   };
 
-  // Initialize WebSocket connection for notifications
+  // Initialize WebSocket connections for notifications and messaging
   useEffect(() => {
     if (user) {
-      const token = localStorage.getItem('token');
+      const token = Cookies.get('accessToken');
       if (token) {
+        // Initialize notification socket
         initializeSocket(token);
+
+        // Initialize messaging socket
+        messagingSocket.connect(token, user.id);
       }
     }
 
     return () => {
       disconnectSocket();
+      messagingSocket.disconnect();
     };
   }, [user]);
 
@@ -88,6 +95,9 @@ const Header = () => {
                 <span>Profile</span>
               </Button>
             </Link>
+
+            {/* Message Badge */}
+            <MessageBadge />
 
             {/* Notification Bell */}
             <NotificationBell />
