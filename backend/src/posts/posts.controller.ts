@@ -87,6 +87,17 @@ export class PostsController {
     return await this.postsService.findMyPosts(req.user.id, pageNum, limitNum);
   }
 
+  @Get('user/:userId')
+  async findUserPosts(
+    @Param('userId') userId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page ? parseInt(page) : 1;
+    const limitNum = limit ? parseInt(limit) : 10;
+    return await this.postsService.findMyPosts(+userId, pageNum, limitNum);
+  }
+
   @Get('/:id')
   async findOne(@Param('id') id: string, @Req() req) {
     const userId = req.user?.id;

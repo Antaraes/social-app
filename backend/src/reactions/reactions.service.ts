@@ -5,10 +5,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
 import { CreateReactionDto } from './dto/create-reaction.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class ReactionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private eventEmitter: EventEmitter2,
+  ) {}
 
   async toggleReaction(
     postId: number,
@@ -57,7 +61,24 @@ export class ReactionsService {
     const updatedPost = await this.prisma.post.update({
       where: { id: postId },
       data: { reactionCount: { increment: 1 } },
+      include: {
+        user: true,
+      },
     });
+
+    // Emit notification event (don't notify if user reacts to their own post)
+    if (updatedPost.userId !== userId) {
+      this.eventEmitter.emit('notification.create', {
+        userId: updatedPost.userId,
+        type: 'POST_LIKE',
+        actorId: userId,
+        entityType: 'post',
+        entityId: postId,
+        message: `reacted to your post "${updatedPost.title}"`,
+        priority: 'LOW',
+        channels: ['web'],
+      });
+    }
 
     return {
       liked: true,

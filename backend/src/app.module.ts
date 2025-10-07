@@ -8,8 +8,14 @@ import { PostsModule } from './posts/posts.module';
 import { CommentsModule } from './comments/comments.module';
 import { ReactionsModule } from './reactions/reactions.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from 'prisma/prisma.module';
+import { FollowModule } from './follow/follow.module';
+import { FeedModule } from './feed/feed.module';
+import { SearchModule } from './search/search.module';
+import { DraftModule } from './draft/draft.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { BullModule } from '@nestjs/bullmq';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
@@ -17,6 +23,13 @@ import { PrismaModule } from 'prisma/prisma.module';
       isGlobal: true,
       envFilePath: `.env`,
     }),
+    BullModule.forRoot({
+      connection: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379', 10),
+      },
+    }),
+    EventEmitterModule.forRoot(),
     ThrottlerModule.forRoot([
       {
         name: 'short',
@@ -40,6 +53,11 @@ import { PrismaModule } from 'prisma/prisma.module';
     PostsModule,
     CommentsModule,
     ReactionsModule,
+    FollowModule,
+    FeedModule,
+    SearchModule,
+    DraftModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService, ConfigService],

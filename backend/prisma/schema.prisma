@@ -23,6 +23,31 @@ enum ReactionType {
   ANGRY
 }
 
+enum NotificationType {
+  FOLLOW
+  UNFOLLOW
+  POST_LIKE
+  POST_COMMENT
+  POST_SHARE
+  COMMENT_LIKE
+  COMMENT_REPLY
+  MENTION_POST
+  MENTION_COMMENT
+  TAG_POST
+  SYSTEM_ALERT
+  ACCOUNT_UPDATE
+  SECURITY_ALERT
+  MESSAGE_RECEIVED
+  MILESTONE
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
 model User {
   id           Int         @id @default(autoincrement())
   email        String      @unique
@@ -36,6 +61,19 @@ model User {
   posts        Post[]
   comments     Comment[]
   reactions    Reaction[]
+  drafts       Draft[]
+  searches     SearchHistory[]
+
+  // Follow system
+  followers    Follow[]    @relation("UserFollowers")
+  following    Follow[]    @relation("UserFollowing")
+  mentions     Mention[]
+
+  // Notifications
+  notifications        Notification[]    @relation("UserNotifications")
+  triggeredNotifications Notification[]  @relation("NotificationActor")
+  notificationSettings NotificationSettings?
+  activityLogs         ActivityLog[]
 
   @@map("users")
 }
@@ -53,6 +91,8 @@ model Post {
   user          User        @relation(fields: [userId], references: [id])
   comments      Comment[]
   reactions     Reaction[]
+  hashtags      PostHashtag[]
+  mentions      Mention[]
 
   @@map("posts")
 }
@@ -87,4 +127,179 @@ model Reaction {
 
   @@unique([postId, userId])
   @@map("reactions")
+}
+
+// Follow system
+model Follow {
+  id          Int      @id @default(autoincrement())
+  followerId  Int      @map("follower_id")
+  followingId Int      @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower    User     @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+// Hashtag system
+model Hashtag {
+  id        Int           @id @default(autoincrement())
+  name      String        @unique @db.VarChar(100)
+  posts     PostHashtag[]
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@index([name])
+  @@map("hashtags")
+}
+
+model PostHashtag {
+  id        Int      @id @default(autoincrement())
+  postId    Int      @map("post_id")
+  hashtagId Int      @map("hashtag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  hashtag   Hashtag  @relation(fields: [hashtagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, hashtagId])
+  @@index([postId])
+  @@index([hashtagId])
+  @@map("post_hashtags")
+}
+
+// Mention system
+model Mention {
+  id        Int      @id @default(autoincrement())
+  postId    Int      @map("post_id")
+  userId    Int      @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+  @@map("mentions")
+}
+
+// Draft system
+model Draft {
+  id        Int      @id @default(autoincrement())
+  title     String?  @db.VarChar(200)
+  content   String   @db.Text
+  image     String?  @db.VarChar(255)
+  userId    Int      @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("drafts")
+}
+
+// Search history
+model SearchHistory {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  query     String   @db.VarChar(200)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([query])
+  @@map("search_history")
+}
+
+// Notification system
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  type      NotificationType
+  priority  NotificationPriority @default(MEDIUM)
+
+  // Content
+  title     String?  @db.VarChar(200)
+  message   String   @db.Text
+
+  // Related entities (polymorphic relationship via metadata)
+  actorId   Int?     @map("actor_id")
+  entityType String? @map("entity_type")
+  entityId   Int?    @map("entity_id")
+
+  // Metadata (flexible JSON for additional data)
+  metadata  Json?
+
+  // State
+  isRead    Boolean  @default(false) @map("is_read")
+  readAt    DateTime? @map("read_at")
+
+  // Channels
+  channels  Json     @default("[]")
+  sentChannels Json  @default("{}")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  expiresAt DateTime? @map("expires_at")
+
+  // Relations
+  user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  actor     User?    @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead, createdAt])
+  @@index([userId, type])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model NotificationSettings {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique @map("user_id")
+
+  // Channel preferences
+  emailEnabled     Boolean @default(true) @map("email_enabled")
+  pushEnabled      Boolean @default(true) @map("push_enabled")
+  webEnabled       Boolean @default(true) @map("web_enabled")
+
+  // Type preferences (JSON for flexibility)
+  preferences Json   @default("{}")
+
+  // Quiet hours
+  quietHoursStart  String? @map("quiet_hours_start")
+  quietHoursEnd    String? @map("quiet_hours_end")
+  timezone         String? @default("UTC")
+
+  // Batching
+  batchEmail       Boolean @default(false) @map("batch_email")
+  batchFrequency   String? @map("batch_frequency")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_settings")
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  action    String   @db.VarChar(100)
+  entityType String  @map("entity_type") @db.VarChar(50)
+  entityId   Int?    @map("entity_id")
+  metadata   Json?
+  ipAddress  String? @map("ip_address") @db.VarChar(45)
+  userAgent  String? @map("user_agent") @db.VarChar(255)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([action])
+  @@map("activity_logs")
 }

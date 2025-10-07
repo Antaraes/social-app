@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Post, Comment } from "../../types";
 import { usePosts } from "../../hooks/usePosts";
 import { useAuth } from "../../hooks/useAuth";
+import { useUpdateComment, useDeleteComment } from "../../hooks/useComments";
 import api from "../../lib/axios";
 import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
@@ -26,6 +27,8 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { Skeleton } from "../ui/skeleton";
 import { toast } from "react-toastify";
+import { parseTextWithHashtagsAndMentions } from "@/lib/textParser";
+import Link from "next/link";
 
 interface PostCardProps {
   post: Post;
@@ -239,7 +242,9 @@ const PostHeader = ({
         )}
       </Avatar>
       <div>
-        <h3 className="font-semibold text-gray-900">{post.user.name}</h3>
+        <Link href={`/profile/${post.user.id}`} className="hover:underline">
+          <h3 className="font-semibold text-gray-900">{post.user.name}</h3>
+        </Link>
         <span className="text-gray-500 text-sm">{timeAgo}</span>
       </div>
     </div>
@@ -404,7 +409,9 @@ const PostContent = ({ post }: { post: Post }) => (
     <h4 className="text-xl font-semibold text-gray-900 leading-tight">
       {post.title}
     </h4>
-    <p className="text-gray-700 leading-relaxed text-base">{post.content}</p>
+    <p className="text-gray-700 leading-relaxed text-base">
+      {parseTextWithHashtagsAndMentions(post.content)}
+    </p>
     {post.image && (
       <div className="rounded-2xl overflow-hidden shadow-sm">
         <img
@@ -460,15 +467,63 @@ const CommentItem = ({
   onReply: (commentId: number, userName: string) => void;
 }) => {
   const { user } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(comment.content);
+  const [showActions, setShowActions] = useState(false);
+  const { mutate: updateComment, isPending: isUpdating } = useUpdateComment();
+  const { mutate: deleteComment, isPending: isDeleting } = useDeleteComment();
+
   const timeAgo = formatDistanceToNow(new Date(comment.createdAt), {
     addSuffix: true,
   });
+
+  const isOwnComment = user && Number(comment.userId) === Number(user.id);
+
+  const handleUpdate = () => {
+    if (!editContent.trim()) return;
+
+    updateComment(
+      { commentId: comment.id, content: editContent },
+      {
+        onSuccess: () => {
+          toast.success("Comment updated successfully");
+          setIsEditing(false);
+        },
+        onError: () => {
+          toast.error("Failed to update comment");
+        },
+      }
+    );
+  };
+
+  const handleDelete = () => {
+    if (window.confirm("Are you sure you want to delete this comment?")) {
+      deleteComment(
+        { commentId: comment.id, postId },
+        {
+          onSuccess: () => {
+            toast.success("Comment deleted successfully");
+          },
+          onError: () => {
+            toast.error("Failed to delete comment");
+          },
+        }
+      );
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditContent(comment.content);
+    setIsEditing(false);
+  };
 
   return (
     <div
       className={`flex space-x-3 ${
         comment.level > 0 ? "ml-12 border-l-2 border-gray-100 pl-4" : ""
       }`}
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
     >
       <Avatar className="h-9 w-9 flex-shrink-0">
         {comment.user.avatar ? (
@@ -483,38 +538,102 @@ const CommentItem = ({
         )}
       </Avatar>
       <div className="flex-1 min-w-0">
-        <div className="bg-gray-50 rounded-2xl px-4 py-3">
-          <div className="flex items-center space-x-2 mb-1">
-            <span className="font-medium text-sm text-gray-900">
-              {comment.user.name}
-            </span>
-            {comment.parentUserName && comment.level > 0 && (
-              <>
-                <Reply size={12} className="text-gray-400" />
-                <span className="text-xs text-gray-500">
-                  {comment.parentUserName}
-                </span>
-              </>
+        <div className="bg-gray-50 rounded-2xl px-4 py-3 relative group">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center space-x-2">
+              <span className="font-medium text-sm text-gray-900">
+                {comment.user.name}
+              </span>
+              {comment.parentUserName && comment.level > 0 && (
+                <>
+                  <Reply size={12} className="text-gray-400" />
+                  <span className="text-xs text-gray-500">
+                    {comment.parentUserName}
+                  </span>
+                </>
+              )}
+            </div>
+            {isOwnComment && showActions && !isEditing && (
+              <div className="flex items-center space-x-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsEditing(true)}
+                  className="h-6 w-6 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full"
+                  aria-label="Edit comment"
+                >
+                  <Edit2 size={12} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="h-6 w-6 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full"
+                  aria-label="Delete comment"
+                >
+                  {isDeleting ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Trash2 size={12} />
+                  )}
+                </Button>
+              </div>
             )}
           </div>
-          <p className="text-sm text-gray-700 leading-relaxed">
-            {comment.content}
-          </p>
-        </div>
-        <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
-          <span>{timeAgo}</span>
-          {user && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onReply(comment.id, comment.user.name)}
-              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg px-2 py-1 h-auto text-xs font-medium transition-colors"
-              aria-label={`Reply to ${comment.user.name}'s comment`}
-            >
-              Reply
-            </Button>
+          {isEditing ? (
+            <div className="space-y-2 mt-2">
+              <Textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                className="min-h-[60px] text-sm border-0 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500"
+                autoFocus
+              />
+              <div className="flex items-center space-x-2">
+                <Button
+                  size="sm"
+                  onClick={handleUpdate}
+                  disabled={!editContent.trim() || isUpdating}
+                  className="h-7 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs"
+                >
+                  {isUpdating ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    "Save"
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={cancelEdit}
+                  className="h-7 px-3 text-gray-600 hover:bg-gray-100 rounded-lg text-xs"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-700 leading-relaxed">
+              {comment.content}
+            </p>
           )}
         </div>
+        {!isEditing && (
+          <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
+            <span>{timeAgo}</span>
+            {user && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onReply(comment.id, comment.user.name)}
+                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg px-2 py-1 h-auto text-xs font-medium transition-colors"
+                aria-label={`Reply to ${comment.user.name}'s comment`}
+              >
+                Reply
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -674,18 +793,19 @@ const PostCard = ({ post }: PostCardProps) => {
             {post.reactionCount > 0 && (
               <div className="flex items-center space-x-3 mt-6 text-sm text-gray-600">
                 <div className="flex items-center space-x-2">
-                  {Object.entries(post.reactionCounts).map(([type, count]) =>
-                    count > 0 ? (
-                      <span
-                        key={type}
-                        className="flex items-center space-x-1 bg-gray-50 rounded-full px-2 py-1"
-                      >
-                        <span className="text-base">
-                          {REACTION_CONFIG.icons[type]}
+                  {Object.entries(post.reactionCounts ?? {}).map(
+                    ([type, count]) =>
+                      count > 0 ? (
+                        <span
+                          key={type}
+                          className="flex items-center space-x-1 bg-gray-50 rounded-full px-2 py-1"
+                        >
+                          <span className="text-base">
+                            {REACTION_CONFIG.icons[type]}
+                          </span>
+                          <span className="text-xs font-medium">{count}</span>
                         </span>
-                        <span className="text-xs font-medium">{count}</span>
-                      </span>
-                    ) : null
+                      ) : null
                   )}
                 </div>
                 <span className="text-gray-400 text-xs">

@@ -36,7 +36,13 @@ export class UsersService {
         bio: true,
         avatar: true,
         _count: {
-          select: { posts: true, comments: true, reactions: true },
+          select: {
+            posts: true,
+            comments: true,
+            reactions: true,
+            followers: true,
+            following: true,
+          },
         },
       },
     });
@@ -55,6 +61,8 @@ export class UsersService {
       postsCount: user._count.posts,
       commentsCount: user._count.comments,
       reactionsCount: user._count.reactions,
+      followersCount: user._count.followers,
+      followingCount: user._count.following,
     };
   }
 }

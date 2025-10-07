@@ -13,6 +13,74 @@ import * as fs from 'fs/promises';
 export class PostsService {
   constructor(private prisma: PrismaService) {}
 
+  private extractHashtags(content: string): string[] {
+    const hashtagRegex = /#(\w+)/g;
+    const matches = content.match(hashtagRegex);
+    return matches ? matches.map(tag => tag.substring(1).toLowerCase()) : [];
+  }
+
+  private extractMentions(content: string): string[] {
+    const mentionRegex = /@(\w+)/g;
+    const matches = content.match(mentionRegex);
+    return matches ? matches.map(mention => mention.substring(1)) : [];
+  }
+
+  private async processHashtags(postId: number, content: string) {
+    const hashtags = this.extractHashtags(content);
+
+    for (const hashtagName of hashtags) {
+      let hashtag = await this.prisma.hashtag.findUnique({
+        where: { name: hashtagName },
+      });
+
+      if (!hashtag) {
+        hashtag = await this.prisma.hashtag.create({
+          data: { name: hashtagName },
+        });
+      }
+
+      await this.prisma.postHashtag.upsert({
+        where: {
+          postId_hashtagId: {
+            postId,
+            hashtagId: hashtag.id,
+          },
+        },
+        update: {},
+        create: {
+          postId,
+          hashtagId: hashtag.id,
+        },
+      });
+    }
+  }
+
+  private async processMentions(postId: number, content: string) {
+    const mentions = this.extractMentions(content);
+
+    for (const mentionName of mentions) {
+      const user = await this.prisma.user.findFirst({
+        where: { name: { equals: mentionName, mode: 'insensitive' } },
+      });
+
+      if (user) {
+        await this.prisma.mention.upsert({
+          where: {
+            postId_userId: {
+              postId,
+              userId: user.id,
+            },
+          },
+          update: {},
+          create: {
+            postId,
+            userId: user.id,
+          },
+        });
+      }
+    }
+  }
+
   async create(createPostDto: CreatePostDto, userId: number) {
     const post = await this.prisma.post.create({
       data: {
@@ -28,6 +96,11 @@ export class PostsService {
         },
       },
     });
+
+    // Process hashtags and mentions
+    await this.processHashtags(post.id, createPostDto.content);
+    await this.processMentions(post.id, createPostDto.content);
+
     return {
       ...post,
       userReaction: null, // No reaction yet for new post
@@ -203,6 +276,17 @@ export class PostsService {
         reactions: { select: { type: true, userId: true } },
       },
     });
+
+    // Update hashtags and mentions if content changed
+    if (updatePostDto.content) {
+      // Delete existing hashtags and mentions
+      await this.prisma.postHashtag.deleteMany({ where: { postId: id } });
+      await this.prisma.mention.deleteMany({ where: { postId: id } });
+
+      // Process new hashtags and mentions
+      await this.processHashtags(id, updatePostDto.content);
+      await this.processMentions(id, updatePostDto.content);
+    }
 
     const reactionCounts = updatedPost.reactions.reduce(
       (acc, reaction) => {

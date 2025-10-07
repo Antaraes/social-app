@@ -2,10 +2,13 @@
 import Link from "next/link";
 import { Button } from "../ui/button";
 import { Avatar, AvatarFallback } from "../ui/avatar";
-import { Home, User, LogOut, Menu, X } from "lucide-react";
+import { Home, User, LogOut, Menu, X, Rss } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import SearchBar from "../search/SearchBar";
+import { NotificationBell } from "../notifications/NotificationBell";
+import { initializeSocket, disconnectSocket } from "@/lib/socket";
 
 const Header = () => {
   const { user, loading, logout } = useAuth();
@@ -14,7 +17,20 @@ const Header = () => {
   const toggleMenu = () => {
     setIsMenuOpen((prev) => !prev);
   };
-  console.log(user);
+
+  // Initialize WebSocket connection for notifications
+  useEffect(() => {
+    if (user) {
+      const token = localStorage.getItem('token');
+      if (token) {
+        initializeSocket(token);
+      }
+    }
+
+    return () => {
+      disconnectSocket();
+    };
+  }, [user]);
 
   if (loading) return null;
 
@@ -29,8 +45,13 @@ const Header = () => {
             <div className="bg-black text-white rounded-lg px-3 py-2 font-bold">
               S
             </div>
-            <span className="text-xl font-bold">Social</span>
+            <span className="text-xl font-bold">Social App</span>
           </Link>
+
+          {/* Search Bar */}
+          <div className="hidden md:block flex-1 max-w-lg mx-4">
+            <SearchBar />
+          </div>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-4">
@@ -45,6 +66,17 @@ const Header = () => {
                 <span>Home</span>
               </Button>
             </Link>
+            <Link href="/feed">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center space-x-2"
+                aria-label="Feed"
+              >
+                <Rss size={18} />
+                <span>Feed</span>
+              </Button>
+            </Link>
             <Link href="/profile">
               <Button
                 variant="ghost"
@@ -56,6 +88,10 @@ const Header = () => {
                 <span>Profile</span>
               </Button>
             </Link>
+
+            {/* Notification Bell */}
+            <NotificationBell />
+
             <div className="flex items-center space-x-3">
               <Avatar className="h-8 w-8">
                 <AvatarFallback>
@@ -98,6 +134,9 @@ const Header = () => {
               className="md:hidden bg-white border-t border-gray-200 overflow-hidden"
             >
               <div className="container mx-auto px-4 py-3 flex flex-col space-y-2">
+                <div className="mb-4">
+                  <SearchBar />
+                </div>
                 <Link href="/" onClick={toggleMenu}>
                   <Button
                     variant="ghost"
@@ -107,6 +146,17 @@ const Header = () => {
                   >
                     <Home size={18} />
                     <span>Home</span>
+                  </Button>
+                </Link>
+                <Link href="/feed" onClick={toggleMenu}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full flex items-center space-x-2 justify-start"
+                    aria-label="Feed"
+                  >
+                    <Rss size={18} />
+                    <span>Feed</span>
                   </Button>
                 </Link>
                 <Link href="/profile" onClick={toggleMenu}>

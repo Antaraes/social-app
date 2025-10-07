@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Req,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -22,5 +23,10 @@ export class UsersController {
   @Get('profile')
   async getProfile(@Req() req: any) {
     return this.usersService.getProfile(req.user.id);
+  }
+
+  @Get(':id')
+  async getUserById(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.getProfile(id);
   }
 }

@@ -271,9 +271,15 @@ const UserProfile = () => {
                   <Calendar size={16} />
                   <span>Joined {joinedDate}</span>
                 </div>
-                <div className="flex space-x-4 mt-3 text-gray-500 text-sm">
+                <div className="flex space-x-4 mt-3 text-gray-500 text-sm flex-wrap gap-y-2">
                   <span>
                     <strong>{user.postsCount}</strong> Posts
+                  </span>
+                  <span>
+                    <strong>{user.followersCount || 0}</strong> Followers
+                  </span>
+                  <span>
+                    <strong>{user.followingCount || 0}</strong> Following
                   </span>
                   <span>
                     <strong>{user.commentsCount}</strong> Comments

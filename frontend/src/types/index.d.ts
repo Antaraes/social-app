@@ -9,6 +9,8 @@ export interface User {
   postsCount: number;
   commentsCount: number;
   reactionsCount: number;
+  followersCount?: number;
+  followingCount?: number;
 }
 
 export interface LoginCredentials {

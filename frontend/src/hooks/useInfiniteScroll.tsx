@@ -1,24 +1,46 @@
 "use client";
-import { useEffect, useCallback } from "react";
+import { useEffect, useRef, useCallback } from "react";
 
-export const useInfiniteScroll = (
-  hasNextPage: boolean,
-  isFetchingNextPage: boolean,
-  fetchNextPage: () => void
-) => {
-  const handleScroll = useCallback(() => {
-    if (
-      window.innerHeight + document.documentElement.scrollTop >=
-      document.documentElement.offsetHeight - 1000
-    ) {
-      if (hasNextPage && !isFetchingNextPage) {
+interface UseInfiniteScrollProps {
+  hasNextPage?: boolean;
+  isFetchingNextPage: boolean;
+  fetchNextPage: () => void;
+}
+
+export const useInfiniteScroll = ({
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
+}: UseInfiniteScrollProps) => {
+  const observerRef = useRef<HTMLDivElement>(null);
+
+  const handleObserver = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      const target = entries[0];
+      if (target.isIntersecting && hasNextPage && !isFetchingNextPage) {
         fetchNextPage();
       }
-    }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+    },
+    [hasNextPage, isFetchingNextPage, fetchNextPage]
+  );
 
   useEffect(() => {
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
+    const element = observerRef.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(handleObserver, {
+      threshold: 0.1,
+      rootMargin: "100px",
+    });
+
+    observer.observe(element);
+
+    return () => {
+      if (element) {
+        observer.unobserve(element);
+      }
+    };
+  }, [handleObserver]);
+
+  return { observerRef };
 };

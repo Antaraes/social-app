@@ -6,17 +6,47 @@ import { Textarea } from "../ui/textarea";
 import { Card, CardContent } from "../ui/card";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { useAuth } from "../../hooks/useAuth";
-import { Image, Video, X } from "lucide-react";
+import { Image, Video, X, Save } from "lucide-react";
 import { toast } from "react-toastify";
+import { useSaveDraft, useDrafts } from "@/hooks/useDrafts";
+import { useDebounce } from "@/hooks/useDebounce";
 
 const CreatePost = () => {
   const [content, setContent] = useState("");
   const [title, setTitle] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [currentDraftId, setCurrentDraftId] = useState<number | null>(null);
   const { createPost, isCreatingPost } = usePosts();
   const { user } = useAuth();
+  const { mutate: saveDraft } = useSaveDraft();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Debounce content and title for autosave
+  const debouncedContent = useDebounce(content, 2000);
+  const debouncedTitle = useDebounce(title, 2000);
+
+  // Autosave draft
+  useEffect(() => {
+    if (debouncedContent.trim() || debouncedTitle.trim()) {
+      saveDraft(
+        {
+          draftData: {
+            title: debouncedTitle,
+            content: debouncedContent,
+          },
+          draftId: currentDraftId || undefined,
+        },
+        {
+          onSuccess: (data: any) => {
+            if (!currentDraftId && data.id) {
+              setCurrentDraftId(data.id);
+            }
+          },
+        }
+      );
+    }
+  }, [debouncedContent, debouncedTitle, saveDraft, currentDraftId]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -57,6 +87,7 @@ const CreatePost = () => {
       setTitle("");
       setImage(null);
       setImagePreview(null);
+      setCurrentDraftId(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
