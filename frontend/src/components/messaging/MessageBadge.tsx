@@ -5,6 +5,7 @@ import { MessageCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import Link from 'next/link';
 import Cookies from 'js-cookie';
+import { messagingSocket } from '@/lib/socket';
 
 export const MessageBadge = () => {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -12,9 +13,39 @@ export const MessageBadge = () => {
   useEffect(() => {
     fetchUnreadCount();
 
-    // Poll for updates every 30 seconds
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+    const token = Cookies.get('accessToken');
+    const userId = Cookies.get('userId');
+
+    if (token && userId) {
+      // Connect to messaging socket for real-time updates
+      try {
+        messagingSocket.connect(token, parseInt(userId));
+
+        // Listen for new messages
+        messagingSocket.onMessageReceive(() => {
+          setUnreadCount((prev) => prev + 1);
+        });
+
+        // Listen for read status updates
+        messagingSocket.onMessageStatus((status: any) => {
+          if (status.status === 'read' && status.readBy) {
+            // Refetch to get accurate count
+            fetchUnreadCount();
+          }
+        });
+      } catch (error) {
+        console.error('Failed to connect messaging socket:', error);
+      }
+    }
+
+    // Poll for updates every 60 seconds as backup
+    const interval = setInterval(fetchUnreadCount, 60000);
+
+    return () => {
+      clearInterval(interval);
+      messagingSocket.off('message:receive');
+      messagingSocket.off('message:status');
+    };
   }, []);
 
   const fetchUnreadCount = async () => {

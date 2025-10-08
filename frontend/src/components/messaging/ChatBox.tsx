@@ -64,10 +64,15 @@ export function ChatBox({
   // Mark messages as read when they appear
   useEffect(() => {
     const unreadMessages = messages
-      .filter((msg) => msg.receiverId === userId && msg.status !== 'READ')
+      .filter((msg) =>
+        msg.receiverId === userId &&
+        msg.status !== 'READ' &&
+        msg.id > 0 // Only mark messages with valid IDs (not optimistic messages)
+      )
       .map((msg) => msg.id);
 
     if (unreadMessages.length > 0) {
+      console.log(`Marking ${unreadMessages.length} messages as read:`, unreadMessages);
       markAsRead(unreadMessages);
     }
   }, [messages, userId, markAsRead]);

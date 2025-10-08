@@ -65,10 +65,13 @@ export function useMessaging({ token, userId, conversationId }: UseMessagingOpti
   // Listen for message status updates
   useEffect(() => {
     const handleStatus = (status: any) => {
+      console.log('Message status update received:', status);
       setMessages((prev) =>
         prev.map((msg) => {
           if (status.messageId === msg.id || status.messageIds?.includes(msg.id)) {
-            return { ...msg, status: status.status.toUpperCase() };
+            const newStatus = status.status.toUpperCase();
+            console.log(`Updating message ${msg.id} status from ${msg.status} to ${newStatus}`);
+            return { ...msg, status: newStatus };
           }
           return msg;
         })

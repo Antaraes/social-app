@@ -62,14 +62,17 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     try {
       const userId = client.handshake.auth.userId;
       if (!userId) {
+        this.logger.warn('Client connected without userId, disconnecting');
         client.disconnect();
         return;
       }
 
-      this.logger.log(`Client connected: ${client.id}, User: ${userId}`);
+      this.logger.log(`✅ Client connected: ${client.id}, User: ${userId}`);
 
       // Store user online status in Redis
       await this.redisService.setUserOnline(userId, client.id);
+      this.logger.log(`Stored socket ID ${client.id} for user ${userId} in Redis`);
+
       await this.redisService.updateLastSeen(userId);
 
       // Deliver offline messages
@@ -174,18 +177,25 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     try {
       const userId = client.handshake.auth.userId;
 
+      this.logger.log(`User ${userId} marking message ${payload.messageId} as delivered`);
+
       await this.messagingService.markMessageDelivered(payload.messageId, userId);
 
       // Notify sender
       const message = await this.messagingService.getMessageById(payload.messageId);
       if (message) {
         const senderSocketId = await this.redisService.getUserSocketId(message.senderId);
+        this.logger.log(`Sender ${message.senderId} socket ID: ${senderSocketId}`);
+
         if (senderSocketId) {
           this.server.to(senderSocketId).emit('message:status', {
             messageId: payload.messageId,
             status: 'delivered',
             timestamp: new Date(),
           });
+          this.logger.log(`Emitted delivered status to sender ${message.senderId}`);
+        } else {
+          this.logger.warn(`Sender ${message.senderId} not online, cannot send delivered receipt`);
         }
       }
     } catch (error) {
@@ -202,6 +212,8 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     try {
       const userId = client.handshake.auth.userId;
 
+      this.logger.log(`User ${userId} marking messages as read: ${payload.messageIds.join(', ')}`);
+
       await this.messagingService.markMessagesAsRead(payload.messageIds, userId);
 
       // Reset unread count
@@ -211,8 +223,12 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
       const messages = await this.messagingService.getMessagesByIds(payload.messageIds);
       const senderIds = [...new Set(messages.map(m => m.senderId))];
 
+      this.logger.log(`Notifying senders: ${senderIds.join(', ')}`);
+
       for (const senderId of senderIds) {
         const senderSocketId = await this.redisService.getUserSocketId(senderId);
+        this.logger.log(`Sender ${senderId} socket ID: ${senderSocketId}`);
+
         if (senderSocketId) {
           this.server.to(senderSocketId).emit('message:status', {
             messageIds: payload.messageIds,
@@ -220,6 +236,9 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
             timestamp: new Date(),
             readBy: userId,
           });
+          this.logger.log(`Emitted read status to sender ${senderId}`);
+        } else {
+          this.logger.warn(`Sender ${senderId} not online, cannot send read receipt`);
         }
       }
     } catch (error) {

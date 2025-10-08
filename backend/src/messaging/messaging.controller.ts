@@ -11,7 +11,11 @@ import {
   HttpCode,
   HttpStatus,
   ForbiddenException,
+  UseInterceptors,
+  UploadedFiles,
+  BadRequestException,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { MessagingService } from './messaging.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { MarkReadDto } from './dto/mark-read.dto';
@@ -22,7 +26,10 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiQuery,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
+import { messageAttachmentConfig, validateFileSize, getFileType } from './config/multer.config';
 
 @ApiTags('messaging')
 @ApiBearerAuth()
@@ -231,5 +238,54 @@ export class MessagingController {
     const userId = req.user.id;
     const count = await this.messagingService.getUnreadCount(userId);
     return { count };
+  }
+
+  /**
+   * Upload message attachments
+   * POST /messaging/upload-attachments
+   */
+  @Post('upload-attachments')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(FilesInterceptor('files', 5, messageAttachmentConfig))
+  @ApiOperation({ summary: 'Upload message attachments' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Files uploaded successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid file type or size' })
+  async uploadAttachments(@UploadedFiles() files: Express.Multer.File[]) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files uploaded');
+    }
+
+    // Validate each file size based on type
+    files.forEach((file) => validateFileSize(file));
+
+    // Format file information for response
+    const attachments = files.map((file) => ({
+      filename: file.filename,
+      originalName: file.originalname,
+      path: `/uploads/messages/${file.filename}`,
+      mimetype: file.mimetype,
+      size: file.size,
+      type: getFileType(file.mimetype),
+    }));
+
+    return {
+      success: true,
+      attachments,
+    };
   }
 }
